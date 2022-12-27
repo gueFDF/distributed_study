@@ -12,6 +12,8 @@ import (
 )
 
 func TestServer(t *testing.T) {
+	var foo Foo
+
 	l, err := net.Listen("tcp", "127.0.0.1:8888")
 	if err != nil {
 		println("Listen is err:", err)
@@ -20,6 +22,9 @@ func TestServer(t *testing.T) {
 
 	server := geerpc.NewServer()
 
+	if err := server.Register(&foo); err != nil {
+		log.Fatal("register error", err)
+	}
 	server.Accept(l)
 }
 
@@ -43,8 +48,9 @@ func TestClient(t *testing.T) {
 	}
 }
 
+// TODO :day2 支持异步和并发的高性能客户端
 // 同步接口测试
-func TestClient_sync(t *testing.T) {
+func BenchmarkClient_sync(b *testing.B) {
 	client, _ := geerpc.Dial("tcp", "127.0.0.1:8888")
 
 	defer func() { client.Close() }()
@@ -52,7 +58,7 @@ func TestClient_sync(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		args := fmt.Sprintf("geerpc req %d", i)
 		var reply string
-		if err := client.Call("Foo.sum", args, &reply); err != nil {
+		if err := client.Call("Foo.Sum", args, &reply); err != nil {
 			log.Fatal("call Foo.Sum error:", err)
 		}
 		println("reply:", reply)
@@ -78,4 +84,27 @@ func TestClient_async(t *testing.T) {
 		}
 	}
 
+}
+
+// TODO :完成服务注册
+type Foo int
+
+type Args struct{ Num1, Num2 int }
+
+func (f Foo) Sum(args Args, reply *int) error {
+	*reply = args.Num1 + args.Num2
+	return nil
+}
+
+func TestService(t *testing.T) {
+	client, _ := geerpc.Dial("tcp", "127.0.0.1:8888")
+	defer func() { _ = client.Close() }()
+	for i := 0; i < 10; i++ {
+		args := &Args{i, i * i}
+		var reply int
+		if err := client.Call("Foo.Sum", args, &reply); err != nil {
+			log.Fatal("call Foo.Sum error:", err)
+		}
+		log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
+	}
 }
