@@ -1,10 +1,8 @@
 package test
 
 import (
-	"encoding/json"
 	"fmt"
 	"geerpc"
-	"geerpc/codec"
 	"log"
 	"net"
 	"reflect"
@@ -26,26 +24,6 @@ func TestServer(t *testing.T) {
 		log.Fatal("register error", err)
 	}
 	server.Accept(l)
-}
-
-func TestClient(t *testing.T) {
-	conn, _ := net.Dial("tcp", "127.0.0.1:8888")
-	defer func() { _ = conn.Close() }()
-
-	json.NewEncoder(conn).Encode(geerpc.DefaultOption)
-	cc := codec.NewGobCodec(conn)
-
-	for i := 0; i < 100; i++ {
-		h := &codec.Header{
-			ServiceMethod: "Foo.Sum",
-			Seq:           uint64(i),
-		}
-		cc.Write(h, fmt.Sprintf("geerpc req %d", h.Seq))
-		cc.ReadHeader(h)
-		var reply string
-		cc.ReadBody(&reply)
-		log.Println("reply:", reply)
-	}
 }
 
 // TODO :day2 支持异步和并发的高性能客户端
