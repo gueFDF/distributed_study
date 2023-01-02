@@ -8,9 +8,10 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
-// Call represnets am active RPC
+// Call represnets an active RPC
 type Call struct {
 	Seq           uint64      //ID
 	ServiceMethod string      //format "<service>.<method>"
@@ -28,7 +29,7 @@ func (call *Call) done() {
 type Client struct {
 	cc       codec.Codec
 	opt      *Option
-	sending  sync.Mutex //用来请求有序发送
+	sending  sync.Mutex //用来保证请求有序发送
 	header   codec.Header
 	mu       sync.Mutex       //更小的锁，保护下面的变量
 	seq      uint64           //请求编号
@@ -36,8 +37,6 @@ type Client struct {
 	closing  bool             //用户主动关闭
 	shutdown bool             //服务器告知关闭(一般是发生错误是关闭)
 }
-
-//var _ io.Closer=(*Client)(nil)
 
 var ErrShutdown = errors.New("connection is shut down")
 
@@ -176,24 +175,25 @@ func parseOption(opts ...*Option) (*Option, error) {
 	return opt, nil
 }
 
-// 连接指定RPC服务器
-func Dial(network, address string, opts ...*Option) (client *Client, err error) {
-	opt, err := parseOption(opts...)
-	if err != nil {
-		return nil, err
-	}
-	conn, err := net.Dial(network, address)
-	if err != nil {
-		return nil, err
-	}
+// // 连接指定RPC服务器
+// func Dial(network, address string, opts ...*Option) (client *Client, err error) {
+// 	opt, err := parseOption(opts...)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	conn, err := net.Dial(network, address)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	defer func() {
-		if client == nil {
-			_ = conn.Close()
-		}
-	}()
-	return NewClient(conn, opt)
-}
+// 	//也就是NewClient调用失败
+// 	defer func() {
+// 		if client == nil {
+// 			_ = conn.Close()
+// 		}
+// 	}()
+// 	return NewClient(conn, opt)
+// }
 
 func (client *Client) send(call *Call) {
 	client.sending.Lock()
@@ -225,9 +225,10 @@ func (client *Client) send(call *Call) {
 
 }
 
+// 异步接口
 func (client *Client) Go(serviceMethod string, args, reply interface{}, done chan *Call) *Call {
 	if done == nil {
-		done = make(chan *Call, 10)
+		done = make(chan *Call, 10) //这里1也可以，官方库实现中是10
 	} else if cap(done) == 0 {
 		log.Panic("rpc client: done channel is unbuffered")
 	}
@@ -238,11 +239,70 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 		Done:          done,
 	}
 	client.send(call)
+
+	//这里其实可以直接go client.send(call)
+	//因为不需要等待client.send
 	return call
 
 }
 
+// 同步接口
 func (client *Client) Call(serviceMethod string, args, reply interface{}) error {
 	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
 	return call.Error
+}
+
+
+//用来存放 NewClient的返回结果
+type clientResult struct {
+	client *Client
+	err    error
+}
+
+type newClientFunc func(conn net.Conn, opt *Option) (client *Client, err error)
+
+
+
+//对代码是略微进行重构，加一层中间件，用来处理超时
+func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (client *Client, err error) {
+	opt, err := parseOption(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialTimeout(network, address, opt.ConnectTimeout)
+
+	defer func() {
+		if client == nil {
+			_ = conn.Close()
+		}
+	}()
+
+	ch := make(chan clientResult)
+
+
+	//让子协程去跑函数f(NewClient),将返回值写入管道
+	go func() {
+		client, err := f(conn, opt)
+		ch <- clientResult{client: client, err: err}
+	}()
+
+	//如果为0,说明不限时间，就直接阻塞等待管道的返回结果
+	if opt.ConnectTimeout == 0 {
+		result := <-ch
+		return result.client, result.err
+	}
+
+	//select字段，超时返回err,不超时返回结果
+	select {
+	case <-time.After(opt.ConnectTimeout):
+		return nil, fmt.Errorf("rpc client: connect timeout: expect within %s", opt.ConnectTimeout)
+	case result := <-ch:
+		return result.client, result.err
+	}
+}
+
+
+func Dial(network,address string ,opts...*Option)(*Client,error) {
+	return dialTimeout(NewClient,network,address,opts...)
 }
