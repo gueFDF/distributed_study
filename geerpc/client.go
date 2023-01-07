@@ -1,6 +1,7 @@
 package geerpc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -247,13 +248,19 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 }
 
 // 同步接口
-func (client *Client) Call(serviceMethod string, args, reply interface{}) error {
+func (client *Client) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
 	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
-	return call.Error
+	//加入超时处理机制
+	select {
+	case <-ctx.Done():
+		client.removeCall(call.Seq)
+		return errors.New("rpc client:call failed: "+ctx.Err().Error())
+	case call := <-call.Done:
+		return call.Error
+	}
 }
 
-
-//用来存放 NewClient的返回结果
+// 用来存放 NewClient的返回结果
 type clientResult struct {
 	client *Client
 	err    error
@@ -261,9 +268,7 @@ type clientResult struct {
 
 type newClientFunc func(conn net.Conn, opt *Option) (client *Client, err error)
 
-
-
-//对代码是略微进行重构，加一层中间件，用来处理超时
+// 对代码是略微进行重构，加一层中间件，用来处理超时
 func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (client *Client, err error) {
 	opt, err := parseOption(opts...)
 	if err != nil {
@@ -279,7 +284,6 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 	}()
 
 	ch := make(chan clientResult)
-
 
 	//让子协程去跑函数f(NewClient),将返回值写入管道
 	go func() {
@@ -302,7 +306,6 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 	}
 }
 
-
-func Dial(network,address string ,opts...*Option)(*Client,error) {
-	return dialTimeout(NewClient,network,address,opts...)
+func Dial(network, address string, opts ...*Option) (*Client, error) {
+	return dialTimeout(NewClient, network, address, opts...)
 }
