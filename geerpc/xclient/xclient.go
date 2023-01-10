@@ -80,6 +80,7 @@ func (xc *XClient) Call(ctx context.Context, serviceMethod string, args, reply i
 }
 
 // 广播功能
+// 返回一个成功调用的结果，任意一个实例发生错误，则返回其中一个错误
 func (xc *XClient) Broadcast(ctx context.Context, serviceMethod string, args, reply interface{}) error {
 	//获取全部服务
 	severs, err := xc.d.GetAll()
@@ -98,22 +99,25 @@ func (xc *XClient) Broadcast(ctx context.Context, serviceMethod string, args, re
 		go func(rpcAddr string) {
 			defer wg.Done()
 			var clonedReply interface{}
-			if reply!=nil {
-				clonedReply=reflect.New(reflect.ValueOf(reply).Elem().Type()).Interface()
+			if reply != nil {
+				//复刻一个指针，因为只用返回一个成功调用的返回值，所以每一个协程都需要有一个返回值的副本
+				clonedReply = reflect.New(reflect.ValueOf(reply).Elem().Type()).Interface()
 			}
-			err :=xc.call(rpcAddr,ctx,serviceMethod,args,clonedReply)
+			err := xc.call(rpcAddr, ctx, serviceMethod, args, clonedReply)
 			mu.Lock()
-			if err !=nil&&e==nil {
-				e=err
-				cancel()
+			if err != nil && e == nil {
+				e = err
+				cancel() //出现错误，快速取消
 			}
-			if err==nil&&!replyDone{
+			//调用成功，就返回这个结果就可以了
+			if err == nil && !replyDone {
 				reflect.ValueOf(reply).Elem().Set(reflect.ValueOf(clonedReply).Elem())
-				replyDone=true
+				replyDone = true
 			}
 			mu.Unlock()
 		}(rpcAddr)
 	}
 	wg.Wait()
+	cancel()
 	return e
 }
