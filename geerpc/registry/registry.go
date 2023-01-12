@@ -96,6 +96,7 @@ func HandleHTTP() {
 	DefaultGeeRegister.HandleHTTP(defaultPath)
 }
 
+
 // 服务启动，定时发送心跳，默认周期比注册中心设置的过期时间少一分钟
 func Heartbeat(registry, addr string, duration time.Duration) {
 	if duration == 0 {
@@ -125,3 +126,4 @@ func sendHeartbeat(registry, addr string) error {
 	}
 	return nil
 }
+
