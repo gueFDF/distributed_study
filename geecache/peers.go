@@ -2,7 +2,7 @@ package geecache
 
 // 抽象接口，根据PickPeer()方法，根据传入key选择对应节点PerrGetter
 type PerrPicker interface {
-	PickPeer(key string) (peer PerrPicker, ok bool)
+	PickPeer(key string) (peer PeerGetter, ok bool)
 }
 
 // Get()方法用于从对应group查找缓存值

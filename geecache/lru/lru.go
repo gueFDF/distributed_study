@@ -65,18 +65,18 @@ func (c *Cache) Add(key string, value Value) {
 		kv := ele.Value.(*entry)
 		c.nbytes += int64(value.Len()) - int64(kv.value.Len())
 		kv.value = value
-	} else {  //如果不存在就添加该缓存
+	} else { //如果不存在就添加该缓存
 		ele := c.ll.PushFront(&entry{key, value})
-		c.catche[key] =ele
-		c.nbytes+=int64(len(key))+int64(value.Len())
+		c.catche[key] = ele
+		c.nbytes += int64(len(key)) + int64(value.Len())
 	}
 
 	//如果缓存到达上线，就进行缓存淘汰
-	for c.maxBytes!=0&&c.maxBytes<c.nbytes {
+	for c.maxBytes != 0 && c.maxBytes < c.nbytes {
 		c.RemoveOldest()
 	}
 }
 
-func (c *Cache)Len()int {
-	return c.ll.Len() 
+func (c *Cache) Len() int {
+	return c.ll.Len()
 }
