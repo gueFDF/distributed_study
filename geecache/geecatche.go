@@ -2,6 +2,7 @@ package geecache
 
 import (
 	"fmt"
+	"geecache/singleflight"
 	"log"
 	"sync"
 )
@@ -27,6 +28,7 @@ type Group struct {
 	getter    Getter //缓存未命中时，获取资源的回调
 	mainCache cache
 	peers     PerrPicker
+	loader    *singleflight.Group //去保证同一时间相同的key只会请求一次
 }
 
 var (
@@ -45,6 +47,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{cacheBytes: cacheBytes},
+		loader:    &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -57,6 +60,7 @@ func GetGroup(name string) *Group {
 	return g
 }
 
+// key :eg Tom
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, fmt.Errorf("key is required")
@@ -70,15 +74,24 @@ func (g *Group) Get(key string) (ByteView, error) {
 }
 
 func (g *Group) load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err = g.getFromPeer(peer, key); err == nil {
-				return value, nil
+	view, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			//缓存未命中，先从其他节点寻找
+			if peer, ok := g.peers.PickPeer(key); ok {
+				//从其他节点获取
+				if value, err = g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("[GeeCache] Failed to get from peer", err)
 			}
-			log.Println("[GeeCache] Failed to get from peer", err)
 		}
+		//保存到本机,（根据一致性算法分配给了自己或者未分配）
+		return g.getLocally(key)
+	})
+	if err == nil {
+		return view.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
@@ -104,6 +117,7 @@ func (g *Group) populateCache(key string, value ByteView) {
 	g.mainCache.add(key, value)
 }
 
+// 注册peers,也就是注册分布式
 func (g *Group) RegisterPeers(peers PerrPicker) {
 	if g.peers != nil {
 		panic("RegisterPeerPicker called more than once")
