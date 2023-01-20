@@ -12,7 +12,9 @@ type Connection struct {
 	ConnID    uint32            //连接ID
 	isClosed  bool              //当前连接状态
 	handleAPI ziface.HandleFunc //当前连接所绑定的处理业务的方法API
+	Router    ziface.IRouter    //该连接的处理方法router
 	ExitChan  chan bool         //告知当前连接已经退出/停止 channel
+
 }
 
 // 实例创建
@@ -34,8 +36,22 @@ func (c *Connection) StartReader() {
 		cnt, err := c.Conn.Read(buf)
 		if err != nil {
 			log.Println("recv buf err", buf)
+			c.ExitChan <- true
 			continue
 		}
+
+		//得到当前客户端请求的Request数据
+		req := Request{
+			conn: c,
+			data: buf,
+		}
+		//从路由Routers 中找到注册绑定Conn的对应Handle
+		go func(request ziface.IRequest) {
+			c.Router.PreHandle(request)
+			c.Router.Handle(request)
+			c.Router.PostHandle(request)
+		}(&req)
+
 		//调用当前连接所绑定的HandleAPI
 		if err := c.handleAPI(c.Conn, buf, cnt); err != nil {
 			fmt.Println("ConnID", c.ConnID, "handle is error", err)

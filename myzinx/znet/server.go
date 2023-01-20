@@ -19,6 +19,8 @@ type Server struct {
 	IP string
 	//服务绑定的端口
 	Port int
+	//路由
+	Router ziface.IRouter
 }
 
 func NewServer(name string) ziface.IServer {
@@ -27,6 +29,7 @@ func NewServer(name string) ziface.IServer {
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      7777,
+		Router:    nil,
 	}
 }
 
@@ -56,6 +59,7 @@ func (s *Server) Start() {
 			fmt.Println("listen", s.IPVersion, "err", err)
 			return
 		}
+
 		//已经开始监听
 		fmt.Println("start Zinx server ", s.Name, " succ, now listening...")
 		var cid uint32
@@ -90,4 +94,8 @@ func (s *Server) Serve() {
 	for {
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
 }
