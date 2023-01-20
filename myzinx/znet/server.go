@@ -74,7 +74,7 @@ func (s *Server) Start() {
 			//TODO Server.Start() 设置服务器最大连接控制,如果超过最大连接，那么则关闭此新的连接
 			//TODO Server.Start() 处理该新连接请求的 业务 方法， 此时应该有 handler 和 conn是绑定的
 			//封装成一个连接模块
-			dealConn := NewConnection(conn, cid, defaultcall_back)
+			dealConn := NewConnection(conn, cid, s.Router)
 			go dealConn.Start()
 			cid++
 		}

@@ -8,7 +8,7 @@ type Request struct {
 }
 
 // 获取请求连接信息
-func (r *Request) GetConnect() ziface.IConnection {
+func (r *Request) GetConnection() ziface.IConnection {
 	return r.conn
 }
 

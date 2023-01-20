@@ -1,30 +1,28 @@
 package znet
 
 import (
-	"fmt"
 	"log"
 	"myzinx/ziface"
 	"net"
 )
 
 type Connection struct {
-	Conn      *net.TCPConn      //TCP套接字
-	ConnID    uint32            //连接ID
-	isClosed  bool              //当前连接状态
-	handleAPI ziface.HandleFunc //当前连接所绑定的处理业务的方法API
-	Router    ziface.IRouter    //该连接的处理方法router
-	ExitChan  chan bool         //告知当前连接已经退出/停止 channel
+	Conn     *net.TCPConn   //TCP套接字
+	ConnID   uint32         //连接ID
+	isClosed bool           //当前连接状态
+	Router   ziface.IRouter //该连接的处理方法router
+	ExitChan chan bool      //告知当前连接已经退出/停止 channel
 
 }
 
 // 实例创建
-func NewConnection(conn *net.TCPConn, connID uint32, callback_api ziface.HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
 	return &Connection{
-		Conn:      conn,
-		ConnID:    connID,
-		handleAPI: callback_api,
-		isClosed:  false,
-		ExitChan:  make(chan bool, 1),
+		Conn:     conn,
+		ConnID:   connID,
+		isClosed: false,
+		ExitChan: make(chan bool, 1),
+		Router:   router,
 	}
 }
 func (c *Connection) StartReader() {
@@ -33,9 +31,9 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 	for {
 		buf := make([]byte, 512)
-		cnt, err := c.Conn.Read(buf)
+		_, err := c.Conn.Read(buf)
 		if err != nil {
-			log.Println("recv buf err", buf)
+			log.Println("recv buf err", err)
 			c.ExitChan <- true
 			continue
 		}
@@ -52,11 +50,6 @@ func (c *Connection) StartReader() {
 			c.Router.PostHandle(request)
 		}(&req)
 
-		//调用当前连接所绑定的HandleAPI
-		if err := c.handleAPI(c.Conn, buf, cnt); err != nil {
-			fmt.Println("ConnID", c.ConnID, "handle is error", err)
-			break
-		}
 	}
 }
 
