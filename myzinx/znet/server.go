@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"myzinx/utils"
 	"myzinx/ziface"
 	"net"
 	"time"
@@ -24,11 +25,13 @@ type Server struct {
 }
 
 func NewServer(name string) ziface.IServer {
+	//先初始化全局配置文件
+	utils.GlobalObject.Reload()
 	return &Server{
-		Name:      name,
-		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      7777,
+		Name:      utils.GlobalObject.Name,
+		IPVersion: utils.GlobalObject.Version,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 }

@@ -24,7 +24,7 @@ var GlobalObject *GlobalObj
 
 // 读取用户的配置文件
 func (g *GlobalObj) Reload() {
-	data, err := ioutil.ReadFile("conf/zinx.json")
+	data, err := ioutil.ReadFile("../../conf/zinx.json")
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +40,7 @@ func init() {
 	//初始化GlobalObject变量，设置一些默认值
 	GlobalObject=&GlobalObj{
 		Name: "ZinxServerApp",
-		Version: "V0.4",
+		Version: "tcp4",
 		TcpPort:7777 ,
 		Host: "0.0.0.0",
 		MaxConn: 12000,
