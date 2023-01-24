@@ -2,6 +2,7 @@ package znet
 
 import (
 	"errors"
+	"io"
 	"log"
 	"myzinx/ziface"
 	"net"
@@ -13,7 +14,7 @@ type Connection struct {
 	isClosed   bool              //当前连接状态
 	MsgHandler ziface.IMsgHandle //消息处理模块
 	ExitChan   chan bool         //告知当前连接已经退出/停止 channel
-
+	msgChan    chan []byte       //用于读和写分离
 }
 
 // 实例创建
@@ -24,11 +25,34 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandl
 		isClosed:   false,
 		ExitChan:   make(chan bool, 1),
 		MsgHandler: msgHandler,
+		msgChan:    make(chan []byte),
 	}
 }
+
+// 写协程
+func (c *Connection) startWriter() {
+	log.Println("[Writer Goroutine is running]")
+	defer log.Println(c.RemoteAddr().String(), "[conn Writer exit]")
+
+	for {
+		select {
+		case date := <-c.msgChan:
+			//有数据要写给客户端
+			if _, err := c.Conn.Write(date); err != nil {
+				log.Println("Send Data error:, ", err, " Conn Writer exit")
+				return
+			}
+		case <-c.ExitChan:
+			//关闭
+			return
+		}
+	}
+}
+
+// 读协程
 func (c *Connection) StartReader() {
 	log.Println("Reader Groutine is runing...")
-	defer log.Println("connID = ", c.ConnID, "Reader is exit,remot adder is ", c.RemoteAddr().String())
+	defer log.Println(c.RemoteAddr().String(), "[conn Reader exit]")
 	defer c.Stop()
 	for {
 		dp := NewDataPack()
@@ -37,6 +61,9 @@ func (c *Connection) StartReader() {
 		if err != nil {
 			log.Println("unpack error ", err)
 			c.ExitChan <- true
+			if err==io.EOF {
+				break
+			}
 			continue
 		}
 		//得到当前客户端请求的Request数据
@@ -54,7 +81,15 @@ func (c *Connection) Start() {
 	log.Println("Conn Start()...Connid = ", c.ConnID)
 	//启动从当前连接读数据的业务
 	go c.StartReader()
-	//TODO 启动从当前连接写数据的业务
+	//启动从当前连接写数据的业务
+	go c.startWriter()
+	for {
+		select {
+		case <-c.ExitChan:
+			//退出消息，不再阻塞
+			return
+		}
+	}
 }
 
 // 停止连接，结束当前连接状态
@@ -98,10 +133,6 @@ func (c *Connection) SendMsg(msgID uint32, data []byte) error {
 		return errors.New("Pack error msg")
 	}
 	//写回客户端
-	if _, err := c.Conn.Write(msg); err != nil {
-		log.Println("Write msg id ", msgID, " error ")
-		c.ExitChan <- true
-		return errors.New("Conn Write error")
-	}
+	c.msgChan <- msg
 	return nil
 }
