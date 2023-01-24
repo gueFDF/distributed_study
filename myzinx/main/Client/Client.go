@@ -4,49 +4,46 @@ import (
 	"fmt"
 	"myzinx/znet"
 	"net"
+	"time"
 )
 
+/*
+模拟客户端
+*/
 func main() {
-	//客户端goroutine，负责模拟粘包的数据，然后进行发送
+
+	fmt.Println("Client Test ... start")
+	//3秒之后发起测试请求，给服务端开启服务的机会
+	time.Sleep(3 * time.Second)
+
 	conn, err := net.Dial("tcp", "127.0.0.1:7777")
 	if err != nil {
-		fmt.Println("client dial err:", err)
+		fmt.Println("client start err, exit!")
 		return
 	}
 
-	//创建一个封包对象 dp
-	dp := znet.NewDataPack()
+	for {
+		//发封包message消息
+		dp := znet.NewDataPack()
+		msg, _ := dp.Pack(znet.NewMsgPackage(0, []byte("Zinx V0.5 Client Test Message")))
+		_, err := conn.Write(msg)
+		if err != nil {
+			fmt.Println("write error err ", err)
+			return
+		}
 
-	//封装一个msg1包
-	msg1 := &znet.Message{
-		Id:      0,
-		DataLen: 5,
-		Data:    []byte{'h', 'e', 'l', 'l', 'o'},
+		//将headData字节流 拆包到msg中
+		msgHead, err := dp.Unpack(conn)
+		if err != nil {
+			fmt.Println("server unpack err:", err)
+			return
+		}
+
+		if msgHead.GetDataLen() > 0 {
+
+			fmt.Println("==> Recv Msg: ID=",msgHead.GetMsgId(), ", len=",msgHead.GetDataLen(), ", data=", string(msgHead.GetData()))
+		}
+
+		time.Sleep(1 * time.Second)
 	}
-
-	sendData1, err := dp.Pack(msg1)
-	if err != nil {
-		fmt.Println("client pack msg1 err:", err)
-		return
-	}
-
-	msg2 := &znet.Message{
-		Id:      1,
-		DataLen: 7,
-		Data:    []byte{'w', 'o', 'r', 'l', 'd', '!', '!'},
-	}
-	sendData2, err := dp.Pack(msg2)
-	if err != nil {
-		fmt.Println("client temp msg2 err:", err)
-		return
-	}
-
-	//将sendData1，和 sendData2 拼接一起，组成粘包
-	sendData1 = append(sendData1, sendData2...)
-
-	//向服务器端写数据
-	conn.Write(sendData1)
-
-	//客户端阻塞
-	select {}
 }

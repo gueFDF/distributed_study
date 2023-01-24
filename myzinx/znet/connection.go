@@ -1,6 +1,7 @@
 package znet
 
 import (
+	"errors"
 	"log"
 	"myzinx/ziface"
 	"net"
@@ -30,18 +31,18 @@ func (c *Connection) StartReader() {
 	defer log.Println("connID = ", c.ConnID, "Reader is exit,remot adder is ", c.RemoteAddr().String())
 	defer c.Stop()
 	for {
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
+		dp := NewDataPack()
+		//拆包
+		msg, err := dp.Unpack(c.GetTCPConnection())
 		if err != nil {
-			log.Println("recv buf err", err)
+			log.Println("unpack error ", err)
 			c.ExitChan <- true
 			continue
 		}
-
 		//得到当前客户端请求的Request数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg, //将之前的buf 改成 msg
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
 		go func(request ziface.IRequest) {
@@ -89,7 +90,23 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-// 发送数据，将数据发送给远程客户端
-func (c *Connection) Send(data []byte) error {
+// 直接将Message数据发送给远程的TCP客户端
+func (c *Connection) SendMsg(msgID uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+	//将data封包
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgID, data))
+	if err != nil {
+		log.Println("Pack error msg id = ", msgID)
+		return errors.New("Pack error msg")
+	}
+	//写回客户端
+	if _, err := c.Conn.Write(msg); err != nil {
+		log.Println("Write msg id ", msgID, " error ")
+		c.ExitChan <- true
+		return errors.New("Conn Write error")
+	}
 	return nil
 }

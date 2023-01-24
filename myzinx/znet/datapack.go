@@ -1,9 +1,11 @@
 package znet
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"myzinx/utils"
 	"myzinx/ziface"
 )
@@ -42,9 +44,9 @@ func (dp *DataPack) Pack(msg ziface.IMessage) ([]byte, error) {
 }
 
 // 拆包方法
-func (dp *DataPack) Unpack(binaryData []byte) (ziface.IMessage, error) {
+func (dp *DataPack) Unpack(reader io.ReadCloser) (ziface.IMessage, error) {
 	//创建一个从输入二进制数据的ioReader
-	databuf := bytes.NewReader(binaryData)
+	databuf :=bufio.NewReader(reader)
 	msg := &Message{}
 	if err := binary.Read(databuf, binary.LittleEndian, &msg.DataLen); err != nil {
 		return nil, err
@@ -57,6 +59,12 @@ func (dp *DataPack) Unpack(binaryData []byte) (ziface.IMessage, error) {
 
 	if msg.DataLen < 0 || msg.DataLen > utils.GlobalObject.MaxPackerSize {
 		return nil, errors.New("Too large msg data recieved")
+	}
+
+	//读消息
+	msg.Data = make([]byte, msg.GetDataLen())
+	if err := binary.Read(databuf, binary.LittleEndian, msg.Data); err != nil {
+		return nil, err
 	}
 	//这里只需要把head的数据拆包出来就可以了，然后再通过head的长度，再从conn读取一次数据
 	return msg, nil
