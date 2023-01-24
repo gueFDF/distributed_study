@@ -8,22 +8,22 @@ import (
 )
 
 type Connection struct {
-	Conn     *net.TCPConn   //TCP套接字
-	ConnID   uint32         //连接ID
-	isClosed bool           //当前连接状态
-	Router   ziface.IRouter //该连接的处理方法router
-	ExitChan chan bool      //告知当前连接已经退出/停止 channel
+	Conn       *net.TCPConn      //TCP套接字
+	ConnID     uint32            //连接ID
+	isClosed   bool              //当前连接状态
+	MsgHandler ziface.IMsgHandle //消息处理模块
+	ExitChan   chan bool         //告知当前连接已经退出/停止 channel
 
 }
 
 // 实例创建
-func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
 	return &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		ExitChan: make(chan bool, 1),
-		Router:   router,
+		Conn:       conn,
+		ConnID:     connID,
+		isClosed:   false,
+		ExitChan:   make(chan bool, 1),
+		MsgHandler: msgHandler,
 	}
 }
 func (c *Connection) StartReader() {
@@ -45,12 +45,7 @@ func (c *Connection) StartReader() {
 			msg:  msg, //将之前的buf 改成 msg
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go func(request ziface.IRequest) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
-
+		go c.MsgHandler.DoMsgHandle(&req)
 	}
 }
 
