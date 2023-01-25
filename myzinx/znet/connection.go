@@ -61,7 +61,7 @@ func (c *Connection) StartReader() {
 		if err != nil {
 			log.Println("unpack error ", err)
 			c.ExitChan <- true
-			if err==io.EOF {
+			if err == io.EOF {
 				break
 			}
 			continue
@@ -72,7 +72,13 @@ func (c *Connection) StartReader() {
 			msg:  msg, //将之前的buf 改成 msg
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go c.MsgHandler.DoMsgHandle(&req)
+		if c.MsgHandler.IsOpen() {
+			//说明协程池已经启动
+			c.MsgHandler.SendMsgToTaskQueue(&req)
+		} else {
+
+			go c.MsgHandler.DoMsgHandle(&req)
+		}
 	}
 }
 

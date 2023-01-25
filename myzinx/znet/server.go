@@ -22,6 +22,7 @@ type Server struct {
 	Port int
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler ziface.IMsgHandle
+
 }
 
 func NewServer(name string) ziface.IServer {
@@ -48,9 +49,11 @@ func defaultcall_back(conn *net.TCPConn, data []byte, cnt int) error {
 
 // 开启网络服务
 func (s *Server) Start() {
-	fmt.Printf("[START] Server listenner at IP:%s,Port:%d,is starting\n", s.IP, s.Port)
+	log.Printf("[START] Server listenner at IP:%s,Port:%d,is starting\n", s.IP, s.Port)
 	//开启一个协程做服务器的Linster业务
 	go func() {
+		//启动协程池
+		s.msgHandler.StartWorkerPool()
 		//获取TCP addr(转换格式)
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
