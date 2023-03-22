@@ -22,5 +22,12 @@ func main() {
 		})
 	})
 
+	r.GET("/hello/:name", func(c *gin.Context) {
+		c.String(http.StatusOK, "Hello %s, you're at %s\n", c.Param("name"), c.Path)
+	})
+
+	r.GET("/assert/*filepath", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"filepath": c.Param("filepath")})
+	})
 	r.Run(":9999")
 }

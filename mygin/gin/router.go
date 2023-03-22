@@ -33,7 +33,7 @@ func parsePattern(pattern string) []string {
 	return parts
 }
 
-func (r *router) addRouter(method string, pattern string, handler HandlerFunc) {
+func (r *router) addRoute(method string, pattern string, handler HandlerFunc) {
 	log.Printf("Route %4s - %s", method, pattern)
 	parts := parsePattern(pattern)
 	key := method + "-" + pattern
@@ -52,7 +52,7 @@ func (r *router) addRouter(method string, pattern string, handler HandlerFunc) {
 解析结果为{filepath: "css/geektutu.css"}。
 
 */
-func (r *router) getRouter(method string, pattern string) (*node, map[string]string) {
+func (r *router) getRoute(method string, pattern string) (*node, map[string]string) {
 	searchParts := parsePattern(pattern)
 	params := make(map[string]string)
 	root, ok := r.roots[method]
@@ -67,8 +67,9 @@ func (r *router) getRouter(method string, pattern string) (*node, map[string]str
 			if part[0] == ':' {
 				params[part[1:]] = searchParts[index]
 			}
-			if len(part) > 1 && part[1] == '*' {
+			if len(part) > 1 && part[0] == '*' {
 				params[part[1:]] = strings.Join(searchParts[index:], "/")
+				log.Println(searchParts,searchParts[index:])
 			}
 		}
 		return n, params
@@ -76,13 +77,12 @@ func (r *router) getRouter(method string, pattern string) (*node, map[string]str
 	return nil, nil
 }
 func (r *router) handle(c *Context) {
-	n, params := r.getRouter(c.Method, c.Path)
+	n, params := r.getRoute(c.Method, c.Path)
 	if n != nil {
 		c.Params = params
 		key := c.Method + "-" + n.pattern
 		r.handlers[key](c)
+	} else {
+		c.String(http.StatusNotFound, "404 NOT FOUND:%s\n", c.Path)
 	}
-
-	c.String(http.StatusNotFound, "404 NOT FOUND:%s\n", c.Path)
-
 }
