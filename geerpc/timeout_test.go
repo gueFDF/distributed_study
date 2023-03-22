@@ -3,7 +3,9 @@ package geerpc
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -85,4 +87,25 @@ func TestClient_Call(t *testing.T) {
 
 	})
 
+}
+
+func hello(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "颜然大傻瓜\n")
+	io.WriteString(w, "颜然大傻瓜\n")
+	io.WriteString(w, "颜然大笨蛋\n")
+	io.WriteString(w, "颜然大笨蛋\n")
+
+}
+
+// func main() {
+// 	http.HandleFunc("/hello", hello)
+// 	http.ListenAndServe(":8080", nil)
+// }
+
+func TestHttp(t *testing.T) {
+	http.HandleFunc("/hello", hello)
+	err := http.ListenAndServe("15.235.163.186:1010", nil)
+	if err != nil {
+		fmt.Println("err:", err)
+	}
 }

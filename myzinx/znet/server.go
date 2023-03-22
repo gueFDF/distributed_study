@@ -2,6 +2,7 @@
 package znet
 
 import (
+	"container/list"
 	"errors"
 	"fmt"
 	"log"
@@ -22,7 +23,6 @@ type Server struct {
 	Port int
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler ziface.IMsgHandle
-
 }
 
 func NewServer(name string) ziface.IServer {
@@ -104,4 +104,60 @@ func (s *Server) Serve() {
 
 func (s *Server) AddRouter(msdId uint32, router ziface.IRouter) {
 	s.msgHandler.AddRouter(msdId, router)
+}
+
+type LRUCache struct {
+	v    list.List
+	Map  map[int]*list.Element
+	cap  int
+	size int
+}
+
+type LRUnode struct {
+	key, value int
+}
+
+func Constructor(capacity int) LRUCache {
+	return LRUCache{
+		Map:  make(map[int]*list.Element),
+		cap:  capacity,
+		size: 0,
+	}
+}
+
+func (this *LRUCache) Get(key int) int {
+	if value, ok := this.Map[key]; !ok {
+		fmt.Println("get err ", "key ", key)
+		return -1
+	} else {
+		this.v.Remove(value)
+		temp := value.Value.(LRUnode)
+		this.v.PushFront(temp)
+		delete(this.Map,temp.key)
+		this.Map[key] = this.v.Front()
+		fmt.Println("get ", "key ", temp.key, " value ", temp.value)
+		return value.Value.(LRUnode).value
+	}
+}
+
+func (this *LRUCache) Put(key int, value int) {
+	if v,ok:=this.Map[key];ok{
+		this.v.Remove(v)
+		this.size--
+
+	}else if(this.size >= this.cap) {
+		temp := this.v.Back().Value.(LRUnode)
+		delete(this.Map, temp.key)
+		this.v.Remove(this.v.Back())
+		
+		fmt.Println("key ", key, "value ", value, " 缓存淘汰 ", temp.key, temp.value)
+	}
+
+	p := LRUnode{key, value}
+
+	this.v.PushFront(p)
+	this.Map[key] = this.v.Front()
+	fmt.Println("push ", key, this.v.Front().Value.(LRUnode).value)
+	this.size++
+
 }

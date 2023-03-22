@@ -36,9 +36,7 @@ type debugService struct {
 	Name   string
 	Method map[string]*methodType
 }
-/*
 
-*/
 
 // run
 func (server debugHTTP) ServeHTTP(w http.ResponseWriter, req *http.Request) {

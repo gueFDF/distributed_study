@@ -13,7 +13,7 @@ func TestDial(t *testing.T) {
 		addr := "/tmp/geerpc.sock"
 		//充当服务器，让协程跑
 		go func() {
-			_ = os.Remove(addr)
+			//_ = os.Remove(addr)
 			l, err := net.Listen("unix", addr)
 			if err != nil {
 				t.Fatal("failed to listen unix socket")
@@ -24,5 +24,6 @@ func TestDial(t *testing.T) {
 		<-ch
 		_, err := XDial("unix@" + addr)
 		_assert(err == nil, "failed to connect unix socket")
+		_ = os.Remove(addr)
 	}
 }

@@ -1,12 +1,14 @@
 package test
 
 import (
+	"context"
 	"fmt"
 	"geerpc"
 	"log"
 	"net"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestServer(t *testing.T) {
@@ -35,8 +37,9 @@ func BenchmarkClient_sync(b *testing.B) {
 
 	for i := 0; i < 5; i++ {
 		args := fmt.Sprintf("geerpc req %d", i)
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		var reply string
-		if err := client.Call("Foo.Sum", args, &reply); err != nil {
+		if err := client.Call(ctx, "Foo.Sum", args, &reply); err != nil {
 			log.Fatal("call Foo.Sum error:", err)
 		}
 		println("reply:", reply)
@@ -79,10 +82,14 @@ func TestService(t *testing.T) {
 	defer func() { _ = client.Close() }()
 	for i := 0; i < 10; i++ {
 		args := &Args{i, i * i}
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		var reply int
-		if err := client.Call("Foo.Sum", args, &reply); err != nil {
+		if err := client.Call(ctx, "Foo.Sum", args, &reply); err != nil {
 			log.Fatal("call Foo.Sum error:", err)
 		}
 		log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
 	}
 }
+
+
+

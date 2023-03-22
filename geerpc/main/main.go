@@ -69,7 +69,7 @@ func call(registry string) {
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
+			defer wg.Done()         
 			foo(xc, context.Background(), "call", "Foo.Sum", &Args{Num1: i, Num2: i * i})
 		}(i)
 	}

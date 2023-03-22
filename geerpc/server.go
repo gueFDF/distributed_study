@@ -19,6 +19,7 @@ import (
 	"time"
 )
 
+//魔数，标识一个rpc协议包
 const MagicNumber = 0x3bef5c
 
 type Option struct {
@@ -91,6 +92,8 @@ func (server *Server) serveCodec(cc codec.Codec, opt *Option) {
 	_ = cc.Close()
 }
 
+
+
 // request stores all information of a call
 type request struct {
 	h            *codec.Header // header of request
@@ -108,7 +111,7 @@ func (server *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
 		return nil, err
 	}
 	return &h, nil
-}
+}          
 
 func (server *Server) findService(serviceMethod string) (svc *service, mtype *methodType, err error) {
 	dot := strings.LastIndex(serviceMethod, ".")
@@ -169,7 +172,7 @@ func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.
 	defer wg.Done()
 	called := make(chan struct{})
 	sent := make(chan struct{})
-	//交给子协程去去调用方法，这样就可以处理调用超时了，当超市，主协程直接退出
+	//交给子协程去去调用方法，这样就可以处理调用超时了，当超时，主协程直接退出
 	go func() {
 		err := req.svc.call(req.mtype, req.argv, req.replyv)
 		called <- struct{}{}
@@ -240,37 +243,36 @@ func Register(rcvr interface{}) error { return DefaultServer.Register(rcvr) }
 const (
 	connected        = "200 Connected to Gee RPC"
 	defaultRPCPath   = "/_geerpc_"
-	defaultDebugpath = "/debug/geerpc"
+	defaultDebugPath = "/debug/geerpc"
 )
 
+//处理conect请求
 func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	//不是CONNEXT
 	if req.Method != "CONNECT" {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		_, _ = io.WriteString(w, "不让你访问\n")
 		return
 	}
-	//转换为Hijacker然后调用Hijack()可以返回TCP连接，此时连接状态将右调用者控制关闭
+
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
-		log.Print("rpc hijacking", req.RemoteAddr, ": ", err.Error())
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
 		return
 	}
-	_, _ = io.WriteString(conn, "HTTP/1.0"+connected+"\n\n")
-	//转换为TCP连接
+	_, _ = io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")
 	server.ServeConn(conn)
 }
 
-
-//注册一个http处理程序
-func (server*Server)HandleHTTP(){
-	http.Handle(defaultRPCPath,server)
+// 注册一个http处理程序
+func (server *Server) HandleHTTP() {
+	http.Handle(defaultRPCPath, server)
+	http.Handle(defaultDebugPath, debugHTTP{server})
+	log.Println("rpc server debug path:", defaultDebugPath)
 }
 
-//默认http处理程序
+// 默认http处理程序
 func HandleHTTP() {
 	DefaultServer.HandleHTTP()
 }
-
-

@@ -15,7 +15,7 @@ type XClient struct {
 	clients map[string]*Client
 }
 
-func NewClient(d Discovery, mode SelectMode, opt *Option) *XClient {
+func NewXClient(d Discovery, mode SelectMode, opt *Option) *XClient {
 	return &XClient{
 		d:       d,
 		mode:    mode,

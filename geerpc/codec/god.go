@@ -30,6 +30,8 @@ func NewGobCodec(conn io.ReadWriteCloser) Codec {
 	}
 }
 
+
+
 func (c *GobCodec) ReadHeader(h *Header) error {
 	return c.dec.Decode(h)
 }

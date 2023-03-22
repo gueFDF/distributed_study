@@ -1,13 +1,17 @@
 package geerpc
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"geerpc/codec"
+	"io"
 	"log"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,7 +27,7 @@ type Call struct {
 }
 
 // 为了支持异步调用，当调用结束时，会调用call.done()
-func (call *Call) done() {
+func (call *Call)  done() {
 	call.Done <- call
 }
 
@@ -245,16 +249,16 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 	//因为不需要等待client.send
 	return call
 
-}
+} 
 
 // 同步接口
 func (client *Client) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
-	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
+	call := client.Go(serviceMethod, args, reply, make(chan *Call, 1))
 	//加入超时处理机制
 	select {
 	case <-ctx.Done():
 		client.removeCall(call.Seq)
-		return errors.New("rpc client:call failed: "+ctx.Err().Error())
+		return errors.New("rpc client:call failed: " + ctx.Err().Error())
 	case call := <-call.Done:
 		return call.Error
 	}
@@ -276,16 +280,19 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 	}
 
 	conn, err := net.DialTimeout(network, address, opt.ConnectTimeout)
-
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
 		if client == nil {
+			log.Println("client is nil")
 			_ = conn.Close()
 		}
 	}()
 
 	ch := make(chan clientResult)
 
-	//让子协程去跑函数f(NewClient),将返回值写入管道
+	//让子协程去跑函数f(NewClient)/f(NewHTTPClient),将返回值写入管道
 	go func() {
 		client, err := f(conn, opt)
 		ch <- clientResult{client: client, err: err}
@@ -308,4 +315,46 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 
 func Dial(network, address string, opts ...*Option) (*Client, error) {
 	return dialTimeout(NewClient, network, address, opts...)
+}
+
+// 创建httpclient
+func NewHTTPClient(conn net.Conn, opt *Option) (*Client, error) {
+	_, _ = io.WriteString(conn, fmt.Sprintf("CONNECT %s HTTP/1.0\n\n", defaultRPCPath))
+
+	//发送连接请求，读取响应
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})
+	if err != nil {
+		log.Println("ReadResponse", err)
+	}
+	if err == nil && resp.Status == connected {
+		return NewClient(conn, opt)
+	}
+	if err == nil {
+		err = errors.New("unexpexted HTTP response: " + resp.Status)
+	}
+	return nil, err
+}
+
+// 连接指定的http RPC服务器
+func DialHTTP(network, address string, opts ...*Option) (*Client, error) {
+	return dialTimeout(NewHTTPClient, network, address, opts...)
+}
+
+// tcp和http的统一入口
+// eg, http@10.0.0.1:7001, tcp@10.0.0.1:9999, unix@/tmp/geerpc.sock
+func XDial(rpcAddr string, opts ...*Option) (*Client, error) {
+	parts := strings.Split(rpcAddr, "@")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("rpc client err: wrong format '%s', expect protocol@addr", rpcAddr)
+	}
+	protocol, addr := parts[0], parts[1]
+
+	switch protocol {
+	case "http":
+		return DialHTTP("tcp", addr, opts...)
+	default:
+		//tcp
+		return Dial(protocol, addr, opts...)
+	}
 }

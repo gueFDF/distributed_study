@@ -15,7 +15,9 @@ type methodType struct {
 	ReplyType reflect.Type   //第二个参数类型
 	numCalls  uint64         //方法调用次数
 }
+ 
 
+                                                                                                                      
 func (m *methodType) NumCalls() uint64 {
 	return atomic.LoadUint64(&m.numCalls)
 }
@@ -72,12 +74,12 @@ func (s *service) registerMethods() {
 		//入参包括自己一共要有三个（argv和replyv），返回值一个(err)
 		if mType.NumIn() != 3 || mType.NumOut() != 1 {
 			continue
-		}
+		} 
 		//返回值必须是error
 		if mType.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
 			continue
 		}
-		//获取参数
+		//获取参数类型
 		argType, replyType := mType.In(1), mType.In(2)
 
 		if !IsExportedOrBuildinType(argType) || !IsExportedOrBuildinType(replyType) {
@@ -106,5 +108,8 @@ func (s *service) call(m *methodType, argv, replyv reflect.Value) error {
 	if errInter := returnValues[0].Interface(); errInter != nil {
 		return errInter.(error)
 	}
+	
 	return nil
 }
+
+
