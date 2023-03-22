@@ -1,24 +1,22 @@
 package gin
 
 import (
-	"fmt"
 	"net/http"
 )
 
-type HandlerFunc func(http.ResponseWriter, *http.Request)
+type HandlerFunc func(C *Context)
 
 type Engin struct {
-	router map[string]HandlerFunc
+	router *router
 }
 
 func New() *Engin {
-	return &Engin{router: make(map[string]HandlerFunc)}
+	return &Engin{router: newRouter()}
 }
 
 // 添加路由
 func (engin *Engin) addRoute(method string, pattern string, handler HandlerFunc) {
-	key := method + "-" + pattern
-	engin.router[key] = handler
+	engin.router.addRouter(method,pattern,handler)
 }
 
 // GET请求
@@ -36,10 +34,6 @@ func (engin *Engin) Run(addr string) (err error) {
 }
 
 func (engin *Engin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	key := req.Method + "-" + req.URL.Path
-	if handler, ok := engin.router[key]; ok {
-		handler(w, req)
-	} else {
-		fmt.Fprintf(w, "404 NOT FoUND: %s\n", req.URL)
-	}
+	con := newContext(w, req)
+	engin.router.handler(con)
 }
