@@ -50,13 +50,13 @@ func (n *node) insert(pattern string, parts []string, height int) {
 
 // 访问
 func (n *node) search(parts []string, height int) *node {
+	//匹配到最后一层
 	if len(parts) == height || strings.HasPrefix(n.part, "*") {
 		if n.pattern == "" {
 			return nil
 		}
 		return n
 	}
-
 	part := parts[height]
 	children := n.matchChildren(part)
 	for _, child := range children {

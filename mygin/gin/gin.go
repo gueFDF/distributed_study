@@ -35,5 +35,5 @@ func (engin *Engin) Run(addr string) (err error) {
 
 func (engin *Engin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	con := newContext(w, req)
-	engin.router.handler(con)
+	engin.router.handle(con)
 }
