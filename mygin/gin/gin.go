@@ -2,6 +2,7 @@ package gin
 
 import (
 	"net/http"
+	"strings"
 )
 
 type HandlerFunc func(c *Context)
@@ -56,11 +57,25 @@ func (group *RouterGroup) POST(palette string, handler HandlerFunc) {
 	group.addRoute("POST", palette, handler)
 }
 
-func (Engine *Engine) Run(addr string) (err error) {
-	return http.ListenAndServe(addr, Engine)
+func (engine *Engine) Run(addr string) (err error) {
+	return http.ListenAndServe(addr, engine)
 }
 
-func (Engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var middleware []HandlerFunc
+	for _, group := range engine.groups {
+		//同一个组的共享所有中间件
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			middleware = append(middleware, group.middleware...)
+		}
+	}
+
 	con := newContext(w, req)
-	Engine.router.handle(con)
+	con.handlers = middleware
+	engine.router.handle(con)
+}
+
+// 添加中间件
+func (group *RouterGroup) Use(middleware ...HandlerFunc) {
+	group.middleware = append(group.middleware, middleware...)
 }
