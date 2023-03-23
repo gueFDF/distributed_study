@@ -33,6 +33,6 @@ func main() {
 			c.String(http.StatusOK, "hello %s, you're at %s\n", c.Param("name"), c.Path)
 		})
 	}
-
+	r.Static("/assets", "/usr/geektutu/blog/static")
 	r.Run(":9999")
 }

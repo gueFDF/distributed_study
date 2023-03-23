@@ -2,7 +2,9 @@ package gin
 
 import (
 	"net/http"
+	"path"
 	"strings"
+	"text/template"
 )
 
 type HandlerFunc func(c *Context)
@@ -12,6 +14,9 @@ type Engine struct {
 	*RouterGroup
 	router *router
 	groups []*RouterGroup
+	//用于html渲染
+	htmlTemplates *template.Template
+	funcMap       template.FuncMap
 }
 
 type RouterGroup struct {
@@ -72,10 +77,43 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	con := newContext(w, req)
 	con.handlers = middleware
+	con.engine = engine
 	engine.router.handle(con)
 }
 
 // 添加中间件
 func (group *RouterGroup) Use(middleware ...HandlerFunc) {
 	group.middleware = append(group.middleware, middleware...)
+}
+
+// creat staic hanlder
+func (group *RouterGroup) creatStaticHandler(relativePath string, fs http.FileSystem) HandlerFunc {
+	absolutePath := path.Join(group.prefix, relativePath)
+	fileServer := http.StripPrefix(absolutePath, http.FileServer(fs))
+	return func(c *Context) {
+		file := c.Param("filepath")
+		if _, err := fs.Open(file); err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		fileServer.ServeHTTP(c.Writer, c.Req)
+	}
+}
+
+// serve static files
+func (group *RouterGroup) Static(relativePath string, root string) {
+	handler := group.creatStaticHandler(relativePath, http.Dir(root))
+
+	urlPattern := path.Join(relativePath, "/*filepath")
+
+	//注册 GET handlers
+	group.GET(urlPattern, handler)
+}
+
+func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
+	engine.funcMap = funcMap
+}
+
+func (engine *Engine) LoadHTMLGlob(pattern string) {
+	engine.htmlTemplates = template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }
