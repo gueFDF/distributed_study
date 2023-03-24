@@ -21,8 +21,9 @@ func onlyForV2() gin.HandlerFunc {
 func main() {
 	r := gin.New()
 	r.Use(gin.Logger()) // global midlleware
+	r.Use(gin.Recovery())
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "<h1>Hello Gee</h1>")
+		c.HTML(http.StatusOK, "<h1>Hello Gee</h1>", nil)
 	})
 
 	v2 := r.Group("/v2")
@@ -34,5 +35,11 @@ func main() {
 		})
 	}
 	r.Static("/assets", "/usr/geektutu/blog/static")
+
+	r.GET("/panic", func(c *gin.Context) {
+		names := []string{"geektutu"}
+		c.String(http.StatusOK, names[100])
+	})
 	r.Run(":9999")
+
 }
