@@ -30,6 +30,28 @@ type Channel struct {
 
 }
 
+
+//创建新管道
+func NewChannel(name string, inMemSize int) *Channel {
+	channel := &Channel{
+		name:                name,
+		addClientChan:       make(chan util.ChanReq),
+		removeClientChan:    make(chan util.ChanReq),
+		clients:             make([]Consumer, 0, 5),
+		incomingMessageChan: make(chan *Message, 5),
+		msgChan:             make(chan *Message, inMemSize),
+		clientMessageChan:   make(chan *Message),
+		exitChan:            make(chan util.ChanReq),
+		inFilghtMessageChan: make(chan *Message),
+		inFilghtMessages:    make(map[string]*Message),
+		requeueMessageChan:  make(chan util.ChanReq),
+		finishMessage:   make(chan util.ChanReq),
+	}
+	go channel.Router()
+	return channel
+}
+
+
 // 推送消息
 func (c *Channel) PutMessage(msg *Message) {
 	c.incomingMessageChan <- msg
