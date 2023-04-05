@@ -26,7 +26,9 @@ func uuid() []byte {
 	return b
 }
 
-//将UUID转化为一个字符串
+// 将UUID转化为一个字符串
 func UuidToStr(b []byte) string {
+
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
+ 

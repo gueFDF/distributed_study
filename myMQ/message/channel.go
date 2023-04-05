@@ -1,8 +1,10 @@
 package message
 
 import (
+	"errors"
 	"log"
 	"myMQ/util"
+	"time"
 )
 
 // 解耦和
@@ -19,6 +21,13 @@ type Channel struct {
 	msgChan             chan *Message     //暂存消息
 	clientMessageChan   chan *Message     //消息会被发送到这个管道，后续有消费者使用
 	exitChan            chan util.ChanReq //用来管道关闭
+
+	inFilghtMessageChan chan *Message       //暂时存放发送中的消息
+	inFilghtMessages    map[string]*Message //管理发送中的消息
+
+	finishMessage      chan util.ChanReq //存放发送成功的message的信息
+	requeueMessageChan chan util.ChanReq //要重新发送的消息
+
 }
 
 // 推送消息
@@ -53,6 +62,113 @@ func (c *Channel) RemoveClient(client Consumer) {
 	<-doneChan
 }
 
+// 不停的将消息从msgChan中的读取，写入clientMessageChan管道中
+func (c *Channel) MessagePump(closechan chan struct{}) {
+	var msg *Message
+	for {
+		select {
+		case msg = <-c.msgChan:
+		case <-closechan:
+			return
+		}
+		if msg != nil {
+			c.inFilghtMessageChan <- msg //将发送中的消息加入管道
+		}
+		c.clientMessageChan <- msg
+	}
+}
+
+// 关闭管道
+func (c *Channel) Close() error {
+	errChan := make(chan interface{})
+	c.exitChan <- util.ChanReq{
+		RetChan: errChan,
+	}
+
+	err, _ := (<-errChan).(error)
+	return err
+}
+
+// 保存发送中的消息
+func (c *Channel) pushInFilghtMessage(msg *Message) {
+	c.inFilghtMessages[util.UuidToStr(msg.Uuid())] = msg
+}
+
+// 删除发送中的消息
+func (c *Channel) popInFilghtMessage(uuidStr string) (*Message, error) {
+	//确保消息存在
+	msg, ok := c.inFilghtMessages[uuidStr]
+	if !ok {
+		return nil, errors.New("uuid not in flight")
+	}
+	delete(c.inFilghtMessages, uuidStr)
+	msg.EndTimer()
+	return msg, nil
+}
+
+func (c *Channel) RequeueRouter(closeChan chan struct{}) {
+	for {
+		select {
+		case msg := <-c.inFilghtMessageChan: // 将暂存发送中消息的管道的消息放到map
+			c.pushInFilghtMessage(msg)
+			go func(msg *Message) { //处理超时
+				select {
+				case <-time.After(60 * time.Second):
+					log.Printf("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))
+				case <-msg.timeout:
+					return
+				}
+				err := c.RequeueMessage(util.UuidToStr(msg.Uuid()))
+				if err != nil {
+					log.Printf("ERROR: channel(%s) - %s", c.name, err.Error())
+				}
+			}(msg)
+		case requeueReq := <-c.requeueMessageChan: //将要重新发送消息管道中的消息重新发送
+			uuidStr := requeueReq.Variable.(string)
+			msg, err := c.popInFilghtMessage(uuidStr)
+			if err != nil {
+				log.Printf("ERROR: failed to requeue message(%s) - %s", uuidStr, err.Error())
+			} else {
+				go func(msg *Message) {
+					c.PutMessage(msg)
+				}(msg)
+			}
+			requeueReq.RetChan <- err
+		case finishReq := <-c.finishMessage: //消息完成发送，从map中将消息删除
+			uuidStr := finishReq.Variable.(string)
+			_, err := c.popInFilghtMessage(uuidStr)
+			if err != nil {
+				log.Printf("ERROR: failed to finish message(%s) - %s", uuidStr, err.Error())
+			}
+			finishReq.RetChan <- err
+		case <-closeChan:
+			return
+		}
+	}
+}
+
+func (c *Channel) RequeueMessage(uuidStr string) error {
+	errChan := make(chan interface{})
+	c.requeueMessageChan <- util.ChanReq{
+		Variable: uuidStr,
+		RetChan:  errChan,
+	}
+	err, _ := (<-errChan).(error)
+	return err
+}
+
+// 消息成功发送
+func (c *Channel) FinishMessage(uuidStr string) error {
+	errChan := make(chan interface{})
+	c.finishMessage <- util.ChanReq{
+		Variable: uuidStr,
+		RetChan:  errChan,
+	}
+	err, _ := (<-errChan).(error)
+
+	return err
+}
+
 // 路由（事件处理）
 func (c *Channel) Router() {
 	var (
@@ -60,6 +176,7 @@ func (c *Channel) Router() {
 		closeChan = make(chan struct{}) //目的是通知MessagePump协程关闭
 	)
 	go c.MessagePump(closeChan)
+	go c.RequeueRouter(closeChan)
 	for {
 		select {
 		case clientReq = <-c.addClientChan:
@@ -89,6 +206,7 @@ func (c *Channel) Router() {
 				log.Printf("CHANNEL(%s) wrote message", c.name)
 			default:
 			}
+
 		case closeReq := <-c.exitChan:
 			log.Printf("CHANNEL(%s) is closing", c.name)
 			close(closeChan)
@@ -98,29 +216,4 @@ func (c *Channel) Router() {
 			closeReq.RetChan <- nil
 		}
 	}
-}
-
-// 不停的将消息从msgChan中的读取，写入clientMessageChan管道中
-func (c *Channel) MessagePump(closechan chan struct{}) {
-	var msg *Message
-	for {
-		select {
-		case msg = <-c.msgChan:
-			c.clientMessageChan <- msg
-		case <-closechan:
-			return
-		}
-
-	}
-}
-
-// 关闭管道
-func (c *Channel) Close() error {
-	errChan := make(chan interface{})
-	c.exitChan <- util.ChanReq{
-		RetChan: errChan,
-	}
-
-	err, _ := (<-errChan).(error)
-	return err
 }
