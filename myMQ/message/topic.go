@@ -96,6 +96,8 @@ func (t *Topic) Router(inMemSize int) {
 					go t.MessagePump(closeChan)
 					t.channelWriteStarted = true
 				}
+			} else {
+				channelReq.RetChan <- channel
 			}
 		case msg = <-t.incomingMessageChan:
 			select {

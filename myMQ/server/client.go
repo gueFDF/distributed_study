@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"log"
+	"myMQ/protocol"
 )
 
 type Client struct {
@@ -24,8 +25,12 @@ func (c *Client) String() string {
 	return c.name
 }
 
-func (c *Client) Getstate() int {
+func (c *Client) GetState() int {
 	return c.stat
+}
+
+func (c *Client) SetState(state int) {
+	c.stat = state
 }
 
 func (c *Client) Read(data []byte) (int, error) {
@@ -49,4 +54,18 @@ func (c *Client) Write(data []byte) (int, error) {
 func (c *Client) Close() {
 	log.Printf("CLIENT(%s): closing", c.String())
 	c.conn.Close()
+}
+
+// 一个client绑定一个protocol
+func (c *Client) Handle() {
+	defer c.Close()
+
+	proto := &protocol.Protocol{}
+	err := proto.IOLoop(c)
+
+	if err != nil {
+		log.Printf("ERROR: client(%s) - %s", c.String(), err.Error())
+		return
+	}
+
 }
