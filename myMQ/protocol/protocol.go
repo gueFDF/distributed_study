@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"log"
 	"myMQ/message"
 	"myMQ/util"
@@ -15,7 +17,7 @@ type Protocol struct {
 	channel *message.Channel
 }
 
-func (p *Protocol) IOLoop(client StatefulReadWriter) error {
+func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error {
 	var (
 		err  error
 		line string
@@ -26,6 +28,11 @@ func (p *Protocol) IOLoop(client StatefulReadWriter) error {
 	reader := bufio.NewReader(client)
 
 	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
 		line, err = reader.ReadString('\n')
 		if err != nil {
 			break
@@ -174,4 +181,35 @@ func (p *Protocol) REQ(client StatefulReadWriter, params []string) ([]byte, erro
 
 	return nil, nil
 
+}
+
+// 用于http服务器
+func (p *Protocol) PUB(client StatefulReadWriter, params []string) ([]byte, error) {
+	var buf bytes.Buffer
+	var err error
+	//假client状态必须是-1
+	if client.GetState() == -1 {
+		return nil, ClientErrInvalid
+	}
+
+	if len(params) < 3 {
+		return nil, ClientErrInvalid
+	}
+
+	topicName := params[1]
+	body := []byte(params[2])
+
+	_, err = buf.Write(<-util.UuidChan)
+	if err != nil {
+		return nil, err
+	}
+	_, err = buf.Write(body)
+	if err != nil {
+		return nil, err
+	}
+
+	topic := message.GetTopic(topicName)
+	topic.PutMessage(message.NewMessage(buf.Bytes()))
+
+	return []byte("OK"), nil
 }

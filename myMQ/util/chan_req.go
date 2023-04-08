@@ -7,5 +7,5 @@ type ChanReq struct {
 
 type ChanRet struct {
 	Err      error
-	variable interface{}
+	Variable interface{}
 }

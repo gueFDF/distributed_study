@@ -1,7 +1,9 @@
 package message
 
 import (
+	"context"
 	"log"
+	"myMQ/queue"
 	"myMQ/util"
 )
 
@@ -15,6 +17,8 @@ type Topic struct {
 	routerSyncChan      chan struct{}
 	exitChan            chan util.ChanReq //用来接受退出信号
 	channelWriteStarted bool              //是否已经向channel发送消息
+
+	backend queue.Queue //磁盘队列
 }
 
 var (
@@ -33,6 +37,7 @@ func NewTopic(name string, inMemSize int) *Topic {
 		readSyncChan:        make(chan struct{}),
 		routerSyncChan:      make(chan struct{}),
 		exitChan:            make(chan util.ChanReq),
+		backend:             queue.NewDiskQueue(name),
 	}
 	//go topic.Router(inMemSize)
 	return topic
@@ -48,7 +53,7 @@ func GetTopic(name string) *Topic {
 	return (<-topicChan).(*Topic)
 }
 
-func TopicFactory(inMemSize int) {
+func TopicFactory(ctx context.Context ,inMemSize int) {
 	var (
 		topicReq util.ChanReq
 		name     string
@@ -56,14 +61,19 @@ func TopicFactory(inMemSize int) {
 		ok       bool
 	)
 	for {
-		topicReq = <-newTopicChan
-		name = topicReq.Variable.(string)
-		if topic, ok = TopicMap[name]; !ok {
-			topic = NewTopic(name, inMemSize)
-			TopicMap[name] = topic
-			log.Printf("TOPIC %s CREATED", name)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			topicReq = <-newTopicChan
+			name = topicReq.Variable.(string)
+			if topic, ok = TopicMap[name]; !ok {
+				topic = NewTopic(name, inMemSize)
+				TopicMap[name] = topic
+				log.Printf("TOPIC %s CREATED", name)
+			}
+			topicReq.RetChan <- topic
 		}
-		topicReq.RetChan <- topic
 	}
 }
 
@@ -104,6 +114,12 @@ func (t *Topic) Router(inMemSize int) {
 			case t.msgChan <- msg:
 				log.Printf("TOPIC(%s) wrote message", t.name)
 			default:
+				//缓冲区已经满了，写入磁盘
+				err := t.backend.Put(msg.data)
+				if err != nil {
+					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+				}
+				log.Printf("TOPIC(%s): wrote to backend", t.name)
 			}
 		case <-t.readSyncChan:
 			<-t.routerSyncChan
@@ -134,6 +150,13 @@ func (t *Topic) MessagePump(closechan chan struct{}) {
 	for {
 		select {
 		case msg = <-t.msgChan:
+		case t.backend.ReadReadyChan() <- struct{}{}:
+			bytes, err := t.backend.Get()
+			if err != nil {
+				log.Printf("ERROR: t.backend.Get() - %s", err.Error())
+				continue
+			}
+			msg = NewMessage(bytes)
 		case <-closechan:
 			return
 		}
