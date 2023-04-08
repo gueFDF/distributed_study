@@ -39,7 +39,7 @@ func NewTopic(name string, inMemSize int) *Topic {
 		exitChan:            make(chan util.ChanReq),
 		backend:             queue.NewDiskQueue(name),
 	}
-	//go topic.Router(inMemSize)
+	go topic.Router(inMemSize)
 	return topic
 }
 
@@ -53,7 +53,7 @@ func GetTopic(name string) *Topic {
 	return (<-topicChan).(*Topic)
 }
 
-func TopicFactory(ctx context.Context ,inMemSize int) {
+func TopicFactory(ctx context.Context, inMemSize int) {
 	var (
 		topicReq util.ChanReq
 		name     string
@@ -91,14 +91,15 @@ func (t *Topic) GetChannel(channelName string) *Channel {
 func (t *Topic) Router(inMemSize int) {
 	var (
 		msg       *Message
-		closeChan chan struct{}
+		closeChan = make(chan struct{})
 	)
 	for {
 		select {
 		case channelReq := <-t.newChannelChan:
 			channelName := channelReq.Variable.(string)
-			if channel, ok := t.channelMap[channelName]; !ok {
-				channel = NewChannel(channel.name, inMemSize)
+			channel, ok := t.channelMap[channelName]
+			if !ok {
+				channel = NewChannel(channelName, inMemSize)
 				t.channelMap[channelName] = channel
 				log.Printf("TOPIC(%s): new channel(%s)", t.name, channel.name)
 				channelReq.RetChan <- channel
@@ -133,6 +134,7 @@ func (t *Topic) Router(inMemSize int) {
 				}
 			}
 
+			t.backend.Close()
 			close(closeChan)
 			closeReq.RetChan <- nil
 

@@ -47,6 +47,7 @@ func pingHandler(w http.ResponseWriter, req *http.Request) {
 
 func putHandler(w http.ResponseWriter, req *http.Request) {
 	reqParams, err := NewReqParms(req)
+	log.Println("put")
 	if err != nil {
 		log.Printf("HTTP: error - %s", err.Error())
 		return
@@ -78,7 +79,7 @@ func statsHandler(w http.ResponseWriter, req *http.Request) {
 
 func HttpServer(ctx context.Context, address string, port string, endChan chan struct{}) {
 	http.HandleFunc("/ping", pingHandler)
-	http.HandleFunc("/put", pingHandler)
+	http.HandleFunc("/put", putHandler)
 	http.HandleFunc("/stats", statsHandler)
 
 	fqAddress := address + ":" + port
@@ -86,7 +87,6 @@ func HttpServer(ctx context.Context, address string, port string, endChan chan s
 	httpServer := http.Server{
 		Addr: fqAddress,
 	}
-
 
 	go func() {
 		log.Printf("listening for http requests on %s", fqAddress)

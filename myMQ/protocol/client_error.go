@@ -14,6 +14,7 @@ type StatefulReadWriter interface {
 	GetState() int      //获取状态
 	SetState(state int) //设置状态
 	String() string
+	Close()
 }
 
 type ClientError struct {

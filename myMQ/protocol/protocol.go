@@ -86,6 +86,7 @@ func (p *Protocol) Execute(client StatefulReadWriter, params ...string) ([]byte,
 
 		if !returnValues[1].IsNil() {
 			err = returnValues[1].Interface().(error)
+			println(err.Error())
 		}
 		return resp, err
 	}
@@ -115,7 +116,7 @@ func (p *Protocol) SUB(client StatefulReadWriter, params []string) ([]byte, erro
 	client.SetState(ClientWaitGet)
 	topic := message.GetTopic(topicName)
 	p.channel = topic.GetChannel(channelName)
-
+	p.channel.AddClient(client)
 	return nil, nil
 }
 
@@ -188,7 +189,7 @@ func (p *Protocol) PUB(client StatefulReadWriter, params []string) ([]byte, erro
 	var buf bytes.Buffer
 	var err error
 	//假client状态必须是-1
-	if client.GetState() == -1 {
+	if client.GetState() != -1 {
 		return nil, ClientErrInvalid
 	}
 

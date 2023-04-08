@@ -2,13 +2,19 @@ package message
 
 import (
 	"errors"
+	"io"
 	"log"
+	"myMQ/queue"
 	"myMQ/util"
 	"time"
 )
 
 // 解耦和
 type Consumer interface {
+	io.ReadWriter
+	GetState() int      //获取状态
+	SetState(state int) //设置状态
+	String() string
 	Close()
 }
 
@@ -28,10 +34,10 @@ type Channel struct {
 	finishMessage      chan util.ChanReq //存放发送成功的message的信息
 	requeueMessageChan chan util.ChanReq //要重新发送的消息
 
+	backend queue.Queue //消息持久化
 }
 
-
-//创建新管道
+// 创建新管道
 func NewChannel(name string, inMemSize int) *Channel {
 	channel := &Channel{
 		name:                name,
@@ -45,12 +51,12 @@ func NewChannel(name string, inMemSize int) *Channel {
 		inFilghtMessageChan: make(chan *Message),
 		inFilghtMessages:    make(map[string]*Message),
 		requeueMessageChan:  make(chan util.ChanReq),
-		finishMessage:   make(chan util.ChanReq),
+		finishMessage:       make(chan util.ChanReq),
+		backend:             queue.NewDiskQueue(name),
 	}
 	go channel.Router()
 	return channel
 }
-
 
 // 推送消息
 func (c *Channel) PutMessage(msg *Message) {
@@ -63,7 +69,7 @@ func (c *Channel) PullMessage() *Message {
 }
 
 // 添加客户端
-func (c *Channel) addClient(client Consumer) {
+func (c *Channel) AddClient(client Consumer) {
 	log.Printf("Channl(%s): adding client...", c.name)
 	doneChan := make(chan interface{})
 	c.addClientChan <- util.ChanReq{
@@ -90,6 +96,13 @@ func (c *Channel) MessagePump(closechan chan struct{}) {
 	for {
 		select {
 		case msg = <-c.msgChan:
+		case <-c.backend.ReadReadyChan():
+			bytes, err := c.backend.Get()
+			if err != nil {
+				log.Printf("ERROR: c.backend.Get() - %s", err.Error())
+				continue
+			}
+			msg = NewMessage(bytes)
 		case <-closechan:
 			return
 		}
@@ -227,11 +240,17 @@ func (c *Channel) Router() {
 			case c.msgChan <- msg:
 				log.Printf("CHANNEL(%s) wrote message", c.name)
 			default:
+				err := c.backend.Put(msg.data)
+				if err != nil {
+					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+				}
+				log.Printf("CHANNEL(%s): wrote to backend", c.name)
 			}
 
 		case closeReq := <-c.exitChan:
 			log.Printf("CHANNEL(%s) is closing", c.name)
 			close(closeChan)
+			c.backend.Close()
 			for _, consumer := range c.clients {
 				consumer.Close() //告知MessagePump协程退出
 			}
