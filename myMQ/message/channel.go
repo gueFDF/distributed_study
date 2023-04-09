@@ -96,13 +96,13 @@ func (c *Channel) MessagePump(closechan chan struct{}) {
 	for {
 		select {
 		case msg = <-c.msgChan:
-		case <-c.backend.ReadReadyChan():
-			bytes, err := c.backend.Get()
-			if err != nil {
-				log.Printf("ERROR: c.backend.Get() - %s", err.Error())
-				continue
-			}
-			msg = NewMessage(bytes)
+		// case <-c.backend.ReadReadyChan():
+		// 	bytes, err := c.backend.Get()
+		// 	if err != nil {
+		// 		log.Printf("ERROR: c.backend.Get() - %s", err.Error())
+		// 		continue
+		// 	}
+		// 	msg = NewMessage(bytes)
 		case <-closechan:
 			return
 		}
@@ -148,7 +148,7 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 			c.pushInFilghtMessage(msg)
 			go func(msg *Message) { //处理超时
 				select {
-				case <-time.After(60 * time.Second):
+				case <-time.After(time.Duration(60) * time.Second):
 					log.Printf("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))
 				case <-msg.timeout:
 					return
@@ -240,11 +240,11 @@ func (c *Channel) Router() {
 			case c.msgChan <- msg:
 				log.Printf("CHANNEL(%s) wrote message", c.name)
 			default:
-				err := c.backend.Put(msg.data)
-				if err != nil {
-					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
-				}
-				log.Printf("CHANNEL(%s): wrote to backend", c.name)
+				// err := c.backend.Put(msg.data)
+				// if err != nil {
+				// 	log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+				// }
+				// log.Printf("CHANNEL(%s): wrote to backend", c.name)
 			}
 
 		case closeReq := <-c.exitChan:

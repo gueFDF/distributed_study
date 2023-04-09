@@ -113,14 +113,14 @@ func (t *Topic) Router(inMemSize int) {
 		case msg = <-t.incomingMessageChan:
 			select {
 			case t.msgChan <- msg:
-				log.Printf("TOPIC(%s) wrote message", t.name)
+				log.Printf("TOPIC(%s) wrote message: %s", t.name, util.UuidToStr(msg.Uuid()))
 			default:
 				//缓冲区已经满了，写入磁盘
-				err := t.backend.Put(msg.data)
-				if err != nil {
-					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
-				}
-				log.Printf("TOPIC(%s): wrote to backend", t.name)
+				// err := t.backend.Put(msg.data)
+				// if err != nil {
+				// 	log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+				// }
+				// log.Printf("TOPIC(%s): wrote to backend", t.name)
 			}
 		case <-t.readSyncChan:
 			<-t.routerSyncChan
@@ -152,13 +152,13 @@ func (t *Topic) MessagePump(closechan chan struct{}) {
 	for {
 		select {
 		case msg = <-t.msgChan:
-		case t.backend.ReadReadyChan() <- struct{}{}:
-			bytes, err := t.backend.Get()
-			if err != nil {
-				log.Printf("ERROR: t.backend.Get() - %s", err.Error())
-				continue
-			}
-			msg = NewMessage(bytes)
+		// case t.backend.ReadReadyChan() <- struct{}{}:
+		// 	bytes, err := t.backend.Get()
+		// 	if err != nil {
+		// 		log.Printf("ERROR: t.backend.Get() - %s", err.Error())
+		// 		continue
+		// 	}
+		// 	msg = NewMessage(bytes)
 		case <-closechan:
 			return
 		}

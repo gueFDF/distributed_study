@@ -9,7 +9,8 @@ type Message struct {
 
 func NewMessage(data []byte) *Message {
 	return &Message{
-		data: data,
+		data:    data,
+		timeout: make(chan struct{}),
 	}
 }
 
