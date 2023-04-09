@@ -48,10 +48,11 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 		resp, err = p.Execute(client, params...)
 
 		if err != nil {
-			_, err = client.Write([]byte(err.Error()))
-			if err != nil {
-				break
-			}
+			// // _, err = client.Write([]byte(err.Error()))
+			// if err != nil {
+			// 	break
+			// }
+			println(err.Error())
 			continue
 		}
 
@@ -86,7 +87,7 @@ func (p *Protocol) Execute(client StatefulReadWriter, params ...string) ([]byte,
 
 		if !returnValues[1].IsNil() {
 			err = returnValues[1].Interface().(error)
-			println(err.Error())
+			println(err.Error(), " ", cmd, " params: ", params)
 		}
 		return resp, err
 	}
@@ -154,6 +155,7 @@ func (p *Protocol) FIN(client StatefulReadWriter, params []string) ([]byte, erro
 	uuidStr := params[1]
 	err := p.channel.FinishMessage(uuidStr)
 	if err != nil {
+		client.SetState(ClientWaitGet)
 		return nil, err
 	}
 

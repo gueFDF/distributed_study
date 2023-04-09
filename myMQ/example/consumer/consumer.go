@@ -20,6 +20,12 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("%s - %s", util.UuidToStr(msg.Uuid()), msg.Body())
-		consumeClient.WriteCommand(consumeClient.Finish(util.UuidToStr(msg.Uuid())))
+
+
+
+		err2 := consumeClient.WriteCommand(consumeClient.Finish(util.UuidToStr(msg.Uuid())))
+		if err2 != nil {
+			log.Println("finish err: ",err)
+		}
 	}
 }
