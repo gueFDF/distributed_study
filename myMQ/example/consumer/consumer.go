@@ -8,7 +8,7 @@ import (
 
 func main() {
 	consumeClient := client.NewClient(nil)
-	err := consumeClient.Connect("127.0.0.1", 5151)
+	err := consumeClient.Connect("10.30.0.192", 5151)
 	if err != nil {
 		log.Fatal(err)
 	}

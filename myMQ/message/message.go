@@ -1,5 +1,10 @@
 package message
 
+import (
+	"log"
+	"myMQ/util"
+)
+
 //前16位为消息的唯一标识
 
 type Message struct {
@@ -10,7 +15,7 @@ type Message struct {
 func NewMessage(data []byte) *Message {
 	return &Message{
 		data:    data,
-		timeout: make(chan struct{}),
+		timeout: make(chan struct{}, 1),
 	}
 }
 
@@ -31,5 +36,6 @@ func (m *Message) EndTimer() {
 	select {
 	case m.timeout <- struct{}{}:
 	default:
+		log.Printf("EndTimer deafault:uid %s", util.UuidToStr(m.Uuid()))
 	}
 }

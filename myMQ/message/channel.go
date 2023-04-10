@@ -147,10 +147,12 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 		case msg := <-c.inFilghtMessageChan: // 将暂存发送中消息的管道的消息放到map
 			c.pushInFilghtMessage(msg)
 			go func(msg *Message) { //处理超时
+				log.Printf("goruntine run,uuid: %s", util.UuidToStr(msg.Uuid()))
 				select {
 				case <-time.After(60 * time.Second):
 					log.Printf("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))
 				case <-msg.timeout:
+					log.Printf("timeout exit... uid-%s", util.UuidToStr(msg.Uuid()))
 					return
 				}
 				err := c.RequeueMessage(util.UuidToStr(msg.Uuid()))
@@ -171,6 +173,7 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 			requeueReq.RetChan <- err
 		case finishReq := <-c.finishMessage: //消息完成发送，从map中将消息删除
 			uuidStr := finishReq.Variable.(string)
+			log.Printf("finish uuid %s", uuidStr)
 			_, err := c.popInFilghtMessage(uuidStr)
 			if err != nil {
 				log.Printf("ERROR: failed to finish message(%s) - %s", uuidStr, err.Error())
