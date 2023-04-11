@@ -47,7 +47,6 @@ func pingHandler(w http.ResponseWriter, req *http.Request) {
 
 func putHandler(w http.ResponseWriter, req *http.Request) {
 	reqParams, err := NewReqParms(req)
-	log.Println("put")
 	if err != nil {
 		log.Printf("HTTP: error - %s", err.Error())
 		return

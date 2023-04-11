@@ -37,10 +37,6 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 		line, err = reader.ReadString('\n')
 		log.Println("read")
 		if err != nil {
-			// if err==io.EOF {
-
-			// }
-			p.channel.RemoveClient(client)
 			break
 		}
 		//将"\n"替换为""
@@ -54,11 +50,6 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 		resp, err = p.Execute(client, params...)
 
 		if err != nil {
-			// // _, err = client.Write([]byte(err.Error()))
-			// if err != nil {
-			// 	break
-			// }
-			println(err.Error())
 			continue
 		}
 
@@ -69,6 +60,9 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 			}
 		}
 	}
+	log.Printf("PROTOCOL(%s): IOLOOP is exit", client)
+	client.Close()
+	p.channel.RemoveClient(client)
 	return err
 }
 
