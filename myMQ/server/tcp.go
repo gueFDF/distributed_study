@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"log"
+	"myMQ/logs"
 	"net"
 )
 
@@ -12,7 +12,7 @@ func TcpServer(ctx context.Context, addr, port string) {
 	if err != nil {
 		panic("tcp listen(" + fqAddress + ") failed")
 	}
-	log.Printf("listening for clients on %s", fqAddress)
+	logs.Info("listening for clients on %s", fqAddress)
 
 	for {
 		select {
@@ -23,7 +23,7 @@ func TcpServer(ctx context.Context, addr, port string) {
 			if err != nil {
 				panic("accept failed: " + err.Error())
 			}
-			client:=NewClient(conn,conn.RemoteAddr().String())
+			client := NewClient(conn, conn.RemoteAddr().String())
 			go client.Handle(ctx)
 		}
 	}

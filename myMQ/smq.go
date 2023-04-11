@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"myMQ/logs"
 	"myMQ/message"
 	"myMQ/server"
 	"myMQ/util"
@@ -16,16 +17,9 @@ var webPort = flag.Int("web-port", 5150, "port to listen on for HTTP connections
 var tcpPort = flag.Int("tcp-port", 5151, "port to listen on for TCP connections")
 var memQueueSize = flag.Int("mem-queue-size", 10000, "number of messages to keep in memory (per topic)")
 
-//	func init() {
-//		file, err := os.OpenFile("mq.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
-//		if err != nil {
-//			log.Panic("init err")
-//			return
-//		}
-//		log.SetOutput(file)
-//	}
 func main() {
 	flag.Parse()
+	logs.Config(logs.INFO,nil)
 
 	endChan := make(chan struct{})
 	signalChan := make(chan os.Signal, 1)

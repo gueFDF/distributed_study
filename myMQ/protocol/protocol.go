@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"log"
+	"myMQ/logs"
 	"myMQ/message"
 	"myMQ/util"
 	"reflect"
@@ -43,7 +43,7 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 		line = strings.Replace(line, "\r", "", -1)
 		params := strings.Split(line, " ")
 
-		log.Printf("PROTOCOL: %#v", params)
+		logs.Debug("PROTOCOL: %#v", params)
 
 		resp, err = p.Execute(client, params...)
 
@@ -58,7 +58,7 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 			}
 		}
 	}
-	log.Printf("PROTOCOL(%s): IOLOOP is exit", client)
+	logs.Debug("PROTOCOL(%s): IOLOOP is exit", client)
 	client.Close()
 	p.channel.RemoveClient(client)
 	return err
@@ -129,12 +129,12 @@ func (p *Protocol) GET(client StatefulReadWriter, params []string) ([]byte, erro
 	msg := p.channel.PullMessage()
 
 	if msg == nil {
-		log.Printf("ERROR: msg == nil")
+		logs.Error("ERROR: msg == nil")
 		return nil, ClientErrBadMessage
 	}
 
 	uuidStr := util.UuidToStr(msg.Uuid())
-	log.Printf("PROTOCOL: writing msg(%s) to client(%s) - %s", uuidStr, client.String(), string(msg.Body()))
+	logs.Debug("PROTOCOL: writing msg(%s) to client(%s) - %s", uuidStr, client.String(), string(msg.Body()))
 	client.SetState(ClientWaitResponse)
 
 	return msg.Data(), nil

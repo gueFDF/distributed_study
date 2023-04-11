@@ -3,7 +3,7 @@ package message
 import (
 	"errors"
 	"io"
-	"log"
+	"myMQ/logs"
 	"myMQ/queue"
 	"myMQ/util"
 	"time"
@@ -70,7 +70,7 @@ func (c *Channel) PullMessage() *Message {
 
 // 添加客户端
 func (c *Channel) AddClient(client Consumer) {
-	log.Printf("Channl(%s): adding client...", c.name)
+	logs.Info("Channl(%s): adding client...", c.name)
 	doneChan := make(chan interface{})
 	c.addClientChan <- util.ChanReq{
 		Variable: client,
@@ -81,7 +81,7 @@ func (c *Channel) AddClient(client Consumer) {
 
 // 移除客户
 func (c *Channel) RemoveClient(client Consumer) {
-	log.Printf("Channel(%s): remove client...", c.name)
+	logs.Info("Channel(%s): remove client...", c.name)
 	doneChan := make(chan interface{})
 	c.removeClientChan <- util.ChanReq{
 		Variable: client,
@@ -99,7 +99,7 @@ func (c *Channel) MessagePump(closechan chan struct{}) {
 		case <-c.backend.ReadReadyChan():
 			bytes, err := c.backend.Get()
 			if err != nil {
-				log.Printf("ERROR: c.backend.Get() - %s", err.Error())
+				logs.Error("ERROR: c.backend.Get() - %s", err.Error())
 				continue
 			}
 			msg = NewMessage(bytes)
@@ -149,21 +149,21 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 			go func(msg *Message) { //处理超时
 				select {
 				case <-time.After(60 * time.Second):
-					log.Printf("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))
+					logs.Info("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))
 				case <-msg.timeout:
-					log.Printf("timeout exit... uid-%s", util.UuidToStr(msg.Uuid()))
+					logs.Debug("timeout exit... uid-%s", util.UuidToStr(msg.Uuid()))
 					return
 				}
 				err := c.RequeueMessage(util.UuidToStr(msg.Uuid()))
 				if err != nil {
-					log.Printf("ERROR: channel(%s) - %s", c.name, err.Error())
+					logs.Error("ERROR: channel(%s) - %s", c.name, err.Error())
 				}
 			}(msg)
 		case requeueReq := <-c.requeueMessageChan: //将要重新发送消息管道中的消息重新发送
 			uuidStr := requeueReq.Variable.(string)
 			msg, err := c.popInFilghtMessage(uuidStr)
 			if err != nil {
-				log.Printf("ERROR: failed to requeue message(%s) - %s", uuidStr, err.Error())
+				logs.Error("ERROR: failed to requeue message(%s) - %s", uuidStr, err.Error())
 			} else {
 				go func(msg *Message) {
 					c.PutMessage(msg)
@@ -172,10 +172,10 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 			requeueReq.RetChan <- err
 		case finishReq := <-c.finishMessage: //消息完成发送，从map中将消息删除
 			uuidStr := finishReq.Variable.(string)
-			log.Printf("finish uuid %s", uuidStr)
+			logs.Debug("finish uuid %s", uuidStr)
 			_, err := c.popInFilghtMessage(uuidStr)
 			if err != nil {
-				log.Printf("ERROR: failed to finish message(%s) - %s", uuidStr, err.Error())
+				logs.Error("ERROR: failed to finish message(%s) - %s", uuidStr, err.Error())
 			}
 			finishReq.RetChan <- err
 		case <-closeChan:
@@ -219,7 +219,7 @@ func (c *Channel) Router() {
 		case clientReq = <-c.addClientChan:
 			client := clientReq.Variable.(Consumer)
 			c.clients = append(c.clients, client)
-			log.Printf("CHANNEL(%s) added client %#v", c.name, client)
+			logs.Info("CHANNEL(%s) added client %#v", c.name, client)
 			clientReq.RetChan <- struct{}{}
 		case clientReq = <-c.removeClientChan:
 			client := clientReq.Variable.(Consumer)
@@ -231,26 +231,26 @@ func (c *Channel) Router() {
 				}
 			}
 			if indexToRemove == -1 {
-				log.Printf("ERROR: could not find client(%#v) in clients(%#v)", client, c.clients)
+				logs.Error("ERROR: could not find client(%#v) in clients(%#v)", client, c.clients)
 			} else {
 				c.clients = append(c.clients[:indexToRemove], c.clients[indexToRemove+1:]...)
-				log.Printf("CHANNEL(%s) removed client %#v", c.name, client)
+				logs.Info("CHANNEL(%s) removed client %#v", c.name, client)
 			}
 		case msg := <-c.incomingMessageChan:
 			select {
 			// 防止因 msgChan 缓冲填满时造成阻塞，加上一个 default 分支直接丢弃消息
 			case c.msgChan <- msg:
-				log.Printf("CHANNEL(%s) wrote message ,data - %s", c.name, msg.Body())
+				logs.Info("CHANNEL(%s) wrote message ,data - %s", c.name, msg.Body())
 			default:
 				err := c.backend.Put(msg.data)
 				if err != nil {
-					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+					logs.Error("ERROR: t.backend.Put() - %s", err.Error())
 				}
-				log.Printf("CHANNEL(%s): wrote to backend", c.name)
+				logs.Debug("CHANNEL(%s): wrote to backend", c.name)
 			}
 
 		case closeReq := <-c.exitChan:
-			log.Printf("CHANNEL(%s) is closing", c.name)
+			logs.Info("CHANNEL(%s) is closing", c.name)
 			close(closeChan)
 			c.backend.Close()
 			for _, consumer := range c.clients {

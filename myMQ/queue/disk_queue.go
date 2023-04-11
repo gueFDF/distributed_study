@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
+	"myMQ/logs"
 	"myMQ/util"
 	"os"
 )
@@ -37,7 +37,7 @@ func NewDiskQueue(name string) *DiskQueue {
 	if _, err := os.Stat(diskQueue.metaDataFileName()); err == nil {
 		err = diskQueue.retrieveMetaData()
 		if err != nil {
-			log.Printf("WARNING: failed to retrieveMetaData() - %s", err.Error())
+			logs.Warn("WARNING: failed to retrieveMetaData() - %s", err.Error())
 		}
 	}
 
@@ -76,7 +76,7 @@ func (d *DiskQueue) persistMetaData() (err error) {
 		return
 	}
 	f.Close()
-	log.Printf("DISK: persisted meta data for (%s) - readFileNum=%d writeFileNum=%d readPos=%d writePos=%d",
+	logs.Debug("DISK: persisted meta data for (%s) - readFileNum=%d writeFileNum=%d readPos=%d writePos=%d",
 		d.name, d.readFileNum, d.writeFileNum, d.readPos, d.writePos)
 
 	return os.Rename(tmpFileName, metaFileName)
@@ -92,7 +92,7 @@ func (d *DiskQueue) retrieveMetaData() (err error) {
 		return
 	}
 
-	log.Printf("DISK: retrieved meta data for (%s) - readFileNum=%d writeFileNum=%d readPos=%d writePos=%d",
+	logs.Debug("DISK: retrieved meta data for (%s) - readFileNum=%d writeFileNum=%d readPos=%d writePos=%d",
 		d.name, d.readFileNum, d.writeFileNum, d.readPos, d.writePos)
 
 	return

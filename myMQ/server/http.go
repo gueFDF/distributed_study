@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"myMQ/logs"
 	"myMQ/message"
 	"myMQ/protocol"
 	"net/http"
@@ -48,13 +48,13 @@ func pingHandler(w http.ResponseWriter, req *http.Request) {
 func putHandler(w http.ResponseWriter, req *http.Request) {
 	reqParams, err := NewReqParms(req)
 	if err != nil {
-		log.Printf("HTTP: error - %s", err.Error())
+		logs.Error("HTTP: error - %s", err.Error())
 		return
 	}
 
 	topicName, err := reqParams.Query("topic")
 	if err != nil {
-		log.Printf("HTTP: error -%s", err.Error())
+		logs.Error("HTTP: error -%s", err.Error())
 		return
 	}
 	conn := &FakeConn{}
@@ -62,7 +62,7 @@ func putHandler(w http.ResponseWriter, req *http.Request) {
 	proto := &protocol.Protocol{}
 	resp, err := proto.Execute(client, "PUB", topicName, string(reqParams.body))
 	if err != nil {
-		log.Printf("HTTP: error - %s", err.Error())
+		logs.Error("HTTP: error - %s", err.Error())
 		return
 	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(resp)))
@@ -88,19 +88,19 @@ func HttpServer(ctx context.Context, address string, port string, endChan chan s
 	}
 
 	go func() {
-		log.Printf("listening for http requests on %s", fqAddress)
+		logs.Info("listening for http requests on %s", fqAddress)
 		err := http.ListenAndServe(fqAddress, nil)
 		if err != nil {
-			log.Fatal("http.ListenAndServe:", err)
+			logs.Fatal("http.ListenAndServe:", err)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Printf("HTTP server on %s is shutdowning...", fqAddress)
+	logs.Info("HTTP server on %s is shutdowning...", fqAddress)
 	timeoutCtx, fn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fn()
 	if err := httpServer.Shutdown(timeoutCtx); err != nil {
-		log.Printf("HTTP server shutduwn error: %v", err)
+		logs.Info("HTTP server shutduwn error: %v", err)
 	}
 	close(endChan)
 }

@@ -2,7 +2,7 @@ package message
 
 import (
 	"context"
-	"log"
+	"myMQ/logs"
 	"myMQ/queue"
 	"myMQ/util"
 )
@@ -70,7 +70,7 @@ func TopicFactory(ctx context.Context, inMemSize int) {
 			if topic, ok = TopicMap[name]; !ok {
 				topic = NewTopic(name, inMemSize)
 				TopicMap[name] = topic
-				log.Printf("TOPIC %s CREATED", name)
+				logs.Info("TOPIC %s CREATED", name)
 			}
 			topicReq.RetChan <- topic
 		}
@@ -101,7 +101,7 @@ func (t *Topic) Router(inMemSize int) {
 			if !ok {
 				channel = NewChannel(channelName, inMemSize)
 				t.channelMap[channelName] = channel
-				log.Printf("TOPIC(%s): new channel(%s)", t.name, channel.name)
+				logs.Info("TOPIC(%s): new channel(%s)", t.name, channel.name)
 				channelReq.RetChan <- channel
 				if !t.channelWriteStarted {
 					go t.MessagePump(closeChan)
@@ -113,24 +113,24 @@ func (t *Topic) Router(inMemSize int) {
 		case msg = <-t.incomingMessageChan:
 			select {
 			case t.msgChan <- msg:
-				log.Printf("TOPIC(%s) wrote message: %s ,%s", t.name, util.UuidToStr(msg.Uuid()), msg.Body())
+				logs.Info("TOPIC(%s) wrote message: %s ,%s", t.name, util.UuidToStr(msg.Uuid()), msg.Body())
 			default:
 				//缓冲区已经满了，写入磁盘
 				err := t.backend.Put(msg.data)
 				if err != nil {
-					log.Printf("ERROR: t.backend.Put() - %s", err.Error())
+					logs.Error("ERROR: t.backend.Put() - %s", err.Error())
 				}
-				log.Printf("TOPIC(%s): wrote to backend", t.name)
+				logs.Debug("TOPIC(%s): wrote to backend", t.name)
 			}
 		case <-t.readSyncChan:
 			<-t.routerSyncChan
 		case closeReq := <-t.exitChan:
-			log.Printf("TOPIC(%s): closing", t.name)
+			logs.Info("TOPIC(%s): closing", t.name)
 
 			for _, channel := range t.channelMap {
 				err := channel.Close()
 				if err != nil {
-					log.Printf("ERROR: channel(%s) close - %s", channel.name, err.Error())
+					logs.Error("ERROR: channel(%s) close - %s", channel.name, err.Error())
 				}
 			}
 
@@ -155,7 +155,7 @@ func (t *Topic) MessagePump(closechan chan struct{}) {
 		case t.backend.ReadReadyChan() <- struct{}{}:
 			bytes, err := t.backend.Get()
 			if err != nil {
-				log.Printf("ERROR: t.backend.Get() - %s", err.Error())
+				logs.Error("ERROR: t.backend.Get() - %s", err.Error())
 				continue
 			}
 			msg = NewMessage(bytes)

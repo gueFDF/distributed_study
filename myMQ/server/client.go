@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"log"
+	"myMQ/logs"
 	"myMQ/protocol"
 )
 
@@ -53,7 +53,7 @@ func (c *Client) Write(data []byte) (int, error) {
 }
 
 func (c *Client) Close() {
-	log.Printf("CLIENT(%s): closing", c.String())
+	logs.Info("CLIENT(%s): closing", c.String())
 	c.conn.Close()
 }
 
@@ -65,7 +65,7 @@ func (c *Client) Handle(ctx context.Context) {
 	err := proto.IOLoop(ctx, c)
 
 	if err != nil {
-		log.Printf("ERROR: client(%s) - %s", c.String(), err.Error())
+		logs.Error("ERROR: client(%s) - %s", c.String(), err.Error())
 		return
 	}
 

@@ -1,8 +1,9 @@
 package main
 
 import (
-	"log"
 	"myMQ/client.go"
+	"myMQ/logs"
+
 	"myMQ/util"
 )
 
@@ -10,22 +11,20 @@ func main() {
 	consumeClient := client.NewClient(nil)
 	err := consumeClient.Connect("10.30.0.192", 5151)
 	if err != nil {
-		log.Fatal(err)
+		logs.Fatal(err)
 	}
 	consumeClient.WriteCommand(consumeClient.Subscribe("test", "ch"))
 
 	for {
 		msg, err := consumeClient.ReadResponse()
 		if err != nil {
-			log.Fatal(err)
+			logs.Error(err.Error())
 		}
-		log.Printf("%s - %s", util.UuidToStr(msg.Uuid()), msg.Body())
-
-
+		logs.Info("%s - %s", util.UuidToStr(msg.Uuid()), msg.Body())
 
 		err2 := consumeClient.WriteCommand(consumeClient.Finish(util.UuidToStr(msg.Uuid())))
 		if err2 != nil {
-			log.Println("finish err: ",err)
+			logs.Error("finish err: ", err)
 		}
 	}
 }
