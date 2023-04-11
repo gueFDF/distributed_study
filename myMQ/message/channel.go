@@ -147,7 +147,6 @@ func (c *Channel) RequeueRouter(closeChan chan struct{}) {
 		case msg := <-c.inFilghtMessageChan: // 将暂存发送中消息的管道的消息放到map
 			c.pushInFilghtMessage(msg)
 			go func(msg *Message) { //处理超时
-				log.Printf("goruntine run,uuid: %s", util.UuidToStr(msg.Uuid()))
 				select {
 				case <-time.After(60 * time.Second):
 					log.Printf("CHANNEL(%s): auto requeue of message(%s)", c.name, util.UuidToStr(msg.Uuid()))

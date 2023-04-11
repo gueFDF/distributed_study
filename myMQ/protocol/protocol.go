@@ -33,9 +33,7 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 			return nil
 		default:
 		}
-		log.Println("wait read")
 		line, err = reader.ReadString('\n')
-		log.Println("read")
 		if err != nil {
 			break
 		}
