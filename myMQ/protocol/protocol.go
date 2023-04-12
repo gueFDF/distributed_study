@@ -7,7 +7,6 @@ import (
 	"myMQ/logs"
 	"myMQ/message"
 	"myMQ/util"
-	"reflect"
 	"strings"
 )
 
@@ -65,29 +64,20 @@ func (p *Protocol) IOLoop(ctx context.Context, client StatefulReadWriter) error 
 }
 
 func (p *Protocol) Execute(client StatefulReadWriter, params ...string) ([]byte, error) {
-	var (
-		err  error
-		resp []byte
-	)
 
-	typ := reflect.TypeOf(p)
-	args := make([]reflect.Value, 3)
-	args[0] = reflect.ValueOf(p)
-	args[1] = reflect.ValueOf(client)
 	cmd := strings.ToUpper(params[0])
-	if method, ok := typ.MethodByName(cmd); ok {
-		args[2] = reflect.ValueOf(params)
-		returnValues := method.Func.Call(args)
 
-		if !returnValues[0].IsNil() {
-			resp = returnValues[0].Interface().([]byte)
-		}
-
-		if !returnValues[1].IsNil() {
-			err = returnValues[1].Interface().(error)
-			println(err.Error(), " ", cmd, " params: ", params)
-		}
-		return resp, err
+	switch cmd {
+	case "PUB":
+		return p.PUB(client, params)
+	case "GET":
+		return p.GET(client, params)
+	case "FIN":
+		return p.FIN(client, params)
+	case "REQ":
+		return p.REQ(client, params)
+	case "SUB":
+		return p.SUB(client, params)
 	}
 	return nil, ClientErrInvalid
 }
